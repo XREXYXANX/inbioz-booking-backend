@@ -1,33 +1,30 @@
 import express from "express";
 import bodyParser from "body-parser";
 import cors from "cors";
+import fetch from "node-fetch"; // npm install node-fetch@2
 import dotenv from "dotenv";
-import fetch from "node-fetch"; // for Brevo API
 
-dotenv.config(); // Load .env file
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
 
-// Debug route to check server
-app.get("/", (req, res) => {
-  res.send("API is running!");
-});
-
-// POST route for booking
 app.post("/book-appointment", async (req, res) => {
-  console.log("Request body:", req.body);
-
   const { name, age, gender, phone, email, date, address } = req.body;
 
   if (!name || !age || !gender || !phone || !email || !date || !address) {
-    console.error("Missing fields in request body");
-    return res.status(400).json({ error: "Missing required fields" });
+    return res.status(400).json({ error: "Missing fields" });
   }
+
+  const data = {
+    sender: { email: process.env.BREVO_EMAIL },
+    to: [{ email: "inbioz.technology@gmail.com" }],
+    subject: "New InbioZ Appointment",
+    textContent: `Name: ${name}\nAge: ${age}\nGender: ${gender}\nPhone: ${phone}\nEmail: ${email}\nDate: ${date}\nAddress: ${address}`
+  };
 
   try {
     const response = await fetch("https://api.brevo.com/v3/smtp/email", {
@@ -36,33 +33,20 @@ app.post("/book-appointment", async (req, res) => {
         "Content-Type": "application/json",
         "api-key": process.env.BREVO_API_KEY
       },
-      body: JSON.stringify({
-        sender: { email: "Appointmentscheduler<slimshadygameperiod@gmail.com>" },
-        to: [{ email: "inbioz.technology@gmail.com" }],
-        subject: "New InbioZ Appointment",
-        textContent: `
-          Name: ${name}
-          Age: ${age}
-          Gender: ${gender}
-          Phone: ${phone}
-          Email: ${email}
-          Date: ${date}
-          Address: ${address}
-        `
-      })
+      body: JSON.stringify(data)
     });
 
-    const data = await response.json();
-    console.log("Brevo response:", data);
+    const result = await response.json();
 
     if (!response.ok) {
-      return res.status(500).json({ error: "Failed to send booking email", details: data });
+      console.error("Brevo API error:", result);
+      return res.status(response.status).json(result);
     }
 
-    res.status(200).json({ message: "Booking email sent successfully!", brevoResponse: data });
-  } catch (err) {
-    console.error("Error sending email:", err);
-    res.status(500).json({ error: "Server error", details: err.message });
+    res.status(200).json({ message: "Booking email sent successfully!", result });
+  } catch (error) {
+    console.error("Error sending email:", error);
+    res.status(500).json({ error: "Failed to send booking email", details: error.message });
   }
 });
 
