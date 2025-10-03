@@ -4,7 +4,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import SibApiV3Sdk from "sib-api-v3-sdk";
 
-dotenv.config(); // Load .env
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -13,37 +13,38 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// Brevo HTTP API setup
-const client = new SibApiV3Sdk.TransactionalEmailsApi();
-client.apiClient.authentications['api-key'].apiKey = process.env.BREVO_API_KEY;
+// Configure Brevo client
+let defaultClient = SibApiV3Sdk.ApiClient.instance;
+let apiKey = defaultClient.authentications["api-key"];
+apiKey.apiKey = process.env.BREVO_API_KEY;
 
-// Root route for health check
-app.get("/", (req, res) => res.send("API is running!"));
+const tranEmailApi = new SibApiV3Sdk.TransactionalEmailsApi();
 
-// Booking endpoint
 app.post("/book-appointment", async (req, res) => {
   const { name, age, gender, phone, email, date, address } = req.body;
 
-  const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail({
-    sender: { email: process.env.BREVO_EMAIL },
-    to: [{ email: "inbioz.technology@gmail.com" }],
-    subject: "New InbioZ Appointment",
-    textContent: `
-Name: ${name}
-Age: ${age}
-Gender: ${gender}
-Phone: ${phone}
-Email: ${email}
-Date: ${date}
-Address: ${address}`
-  });
-
   try {
-    await client.sendTransacEmail(sendSmtpEmail);
+    const sendSmtpEmail = {
+      sender: { email: process.env.BREVO_EMAIL }, // ✅ must be verified in Brevo
+      to: [{ email: "inbioz.technology@gmail.com" }], // ✅ array of objects
+      subject: "New InbioZ Appointment",
+      textContent: `
+        Name: ${name}
+        Age: ${age}
+        Gender: ${gender}
+        Phone: ${phone}
+        Email: ${email}
+        Date: ${date}
+        Address: ${address}
+      `,
+    };
+
+    await tranEmailApi.sendTransacEmail(sendSmtpEmail);
+
     res.status(200).json({ message: "Booking email sent successfully!" });
   } catch (error) {
-    console.error("Error sending email:", error);
-    res.status(500).json({ error: error.message });
+    console.error("Error sending email:", error.response?.text || error);
+    res.status(500).json({ error: "Failed to send booking email" });
   }
 });
 
