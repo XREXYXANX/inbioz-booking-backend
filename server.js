@@ -12,10 +12,10 @@ app.use(express.json());
 app.post("/book-appointment", async (req, res) => {
   const { name, age, gender, phone, email, date, address } = req.body;
 
-  // Log the incoming request for debugging
+  // 1️⃣ Log the incoming request for debugging
   console.log("Received appointment request:", req.body);
 
-  // Validation
+  // 2️⃣ Validate required fields
   const missingFields = [];
   if (!name) missingFields.push("name");
   if (!age) missingFields.push("age");
@@ -26,19 +26,19 @@ app.post("/book-appointment", async (req, res) => {
   if (!address) missingFields.push("address");
 
   if (missingFields.length > 0) {
-    return res.status(400).json({ 
-      error: "Missing fields", 
+    return res.status(400).json({
+      error: "Missing required fields",
       missing: missingFields,
       received: req.body
     });
   }
 
   try {
-    // Send email via Brevo HTTP API
-    const response = await axios.post(
+    // 3️⃣ Send email via Brevo API
+    const brevoResponse = await axios.post(
       "https://api.brevo.com/v3/smtp/email",
       {
-        sender: { email: "slimshadygameperiod@gmail.com", name: "Appointment Scheduler" },
+        sender: { email: "slimshadygameperiod@gmail.com", name: "Appointment Scheduler" }, // must be verified
         to: [{ email: "inbioz.technology@gmail.com" }],
         subject: "New InbioZ Appointment",
         htmlContent: `
@@ -53,17 +53,27 @@ app.post("/book-appointment", async (req, res) => {
         `
       },
       {
-        headers: { "api-key": process.env.BREVO_API_KEY, "Content-Type": "application/json" }
+        headers: {
+          "api-key": process.env.BREVO_API_KEY, // Set this in Render Environment Variables
+          "Content-Type": "application/json"
+        }
       }
     );
 
-    console.log("Brevo response:", response.data);
-    res.status(200).json({ success: true, message: "Appointment booked successfully!", brevo: response.data });
+    console.log("Brevo API response:", brevoResponse.data);
+
+    res.status(200).json({
+      success: true,
+      message: "Appointment booked successfully!",
+      brevoResponse: brevoResponse.data
+    });
   } catch (error) {
-    console.error("Error sending email:", error.response?.data || error.message);
-    res.status(500).json({ 
-      error: "Failed to send booking email", 
-      details: error.response?.data || error.message
+    // 4️⃣ Log full Brevo error for debugging
+    console.error("Brevo error:", error.response?.data || error.message);
+
+    res.status(500).json({
+      error: "Failed to send booking email",
+      brevoError: error.response?.data || error.message
     });
   }
 });
