@@ -1,51 +1,73 @@
 import express from "express";
-import bodyParser from "body-parser";
 import cors from "cors";
 import dotenv from "dotenv";
-import SibApiV3Sdk from "sib-api-v3-sdk";
+import axios from "axios";
 
-dotenv.config();
+dotenv.config(); // Load .env file
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 app.use(cors());
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.json()); // 👈 needed to parse JSON requests
 
-// Configure Brevo client
-let defaultClient = SibApiV3Sdk.ApiClient.instance;
-let apiKey = defaultClient.authentications["api-key"];
-apiKey.apiKey = process.env.BREVO_API_KEY;
-
-const tranEmailApi = new SibApiV3Sdk.TransactionalEmailsApi();
-
+// Appointment route
 app.post("/book-appointment", async (req, res) => {
+  console.log("📩 Incoming request body:", req.body);
+
   const { name, age, gender, phone, email, date, address } = req.body;
 
+  // Validate fields
+  if (!name || !age || !gender || !phone || !email || !date || !address) {
+    return res.status(400).json({
+      error: "Bad Request",
+      received: req.body,
+      missing: {
+        name: !name,
+        age: !age,
+        gender: !gender,
+        phone: !phone,
+        email: !email,
+        date: !date,
+        address: !address
+      }
+    });
+  }
+
   try {
-    const sendSmtpEmail = {
-      sender: { email: process.env.BREVO_EMAIL }, // ✅ must be verified in Brevo
-      to: [{ email: "inbioz.technology@gmail.com" }], // ✅ array of objects
-      subject: "New InbioZ Appointment",
-      textContent: `
-        Name: ${name}
-        Age: ${age}
-        Gender: ${gender}
-        Phone: ${phone}
-        Email: ${email}
-        Date: ${date}
-        Address: ${address}
-      `,
-    };
+    // Send email using Brevo API
+    const response = await axios.post(
+      "https://api.brevo.com/v3/smtp/email",
+      {
+        sender: { email: "slimshadygameperiod@gmail.com", name: "Appointment Scheduler" },
+        to: [{ email: "inbioz.technology@gmail.com" }], // where you want to receive bookings
+        subject: "New InbioZ Appointment",
+        htmlContent: `
+          <h2>New Appointment</h2>
+          <p><b>Name:</b> ${name}</p>
+          <p><b>Age:</b> ${age}</p>
+          <p><b>Gender:</b> ${gender}</p>
+          <p><b>Phone:</b> ${phone}</p>
+          <p><b>Email:</b> ${email}</p>
+          <p><b>Date:</b> ${date}</p>
+          <p><b>Address:</b> ${address}</p>
+        `
+      },
+      {
+        headers: {
+          "api-key": process.env.BREVO_API_KEY, // 👈 API key from .env
+          "Content-Type": "application/json"
+        }
+      }
+    );
 
-    await tranEmailApi.sendTransacEmail(sendSmtpEmail);
+    console.log("✅ Brevo Response:", response.data);
+    res.json({ success: true, message: "Appointment booked successfully!" });
 
-    res.status(200).json({ message: "Booking email sent successfully!" });
   } catch (error) {
-    console.error("Error sending email:", error.response?.text || error);
+    console.error("❌ Error sending email:", error.response?.data || error.message);
     res.status(500).json({ error: "Failed to send booking email" });
   }
 });
 
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
