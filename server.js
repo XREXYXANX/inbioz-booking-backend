@@ -12,9 +12,25 @@ app.use(express.json());
 app.post("/book-appointment", async (req, res) => {
   const { name, age, gender, phone, email, date, address } = req.body;
 
-  // Simple validation
-  if (!name || !age || !gender || !phone || !email || !date || !address) {
-    return res.status(400).json({ error: "Missing fields", received: req.body });
+  // Log the incoming request for debugging
+  console.log("Received appointment request:", req.body);
+
+  // Validation
+  const missingFields = [];
+  if (!name) missingFields.push("name");
+  if (!age) missingFields.push("age");
+  if (!gender) missingFields.push("gender");
+  if (!phone) missingFields.push("phone");
+  if (!email) missingFields.push("email");
+  if (!date) missingFields.push("date");
+  if (!address) missingFields.push("address");
+
+  if (missingFields.length > 0) {
+    return res.status(400).json({ 
+      error: "Missing fields", 
+      missing: missingFields,
+      received: req.body
+    });
   }
 
   try {
@@ -42,10 +58,13 @@ app.post("/book-appointment", async (req, res) => {
     );
 
     console.log("Brevo response:", response.data);
-    res.json({ success: true, message: "Appointment booked successfully!" });
+    res.status(200).json({ success: true, message: "Appointment booked successfully!", brevo: response.data });
   } catch (error) {
     console.error("Error sending email:", error.response?.data || error.message);
-    res.status(500).json({ error: "Failed to send booking email", details: error.response?.data });
+    res.status(500).json({ 
+      error: "Failed to send booking email", 
+      details: error.response?.data || error.message
+    });
   }
 });
 
